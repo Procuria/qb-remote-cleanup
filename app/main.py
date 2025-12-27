@@ -347,7 +347,11 @@ def remote_apply_actions(
             host_log.info(f"[DRY] ... plus {len(orphan_files) - 200} more")
         return 0, len(orphan_files)
 
-    # Remote actions are implemented using a remote python3 snippet for robustness.
+    # Nothing to do
+    if not orphan_files:
+        host_log.info("No orphan files to act on.")
+        return 0, 0
+
     roots_json = json.dumps(roots)
     files_json = json.dumps(orphan_files)
 
@@ -364,17 +368,17 @@ CLEAN_EMPTY_DIRS={1 if clean_empty_dirs else 0}
 python3 - <<'PY'
 import json, os, sys, subprocess, datetime
 
-mode=os.environ["MODE"]
-trash_subdir=os.environ["TRASH_SUBDIR"]
-roots=json.loads(os.environ["ROOTS_JSON"])
-files=json.loads(os.environ["FILES_JSON"])
-retention=int(os.environ["RETENTION_DAYS"])
-clean_empty=bool(int(os.environ["CLEAN_EMPTY_DIRS"]))
+mode = os.environ["MODE"]
+trash_subdir = os.environ["TRASH_SUBDIR"]
+roots = json.loads(os.environ["ROOTS_JSON"])
+files = json.loads(os.environ["FILES_JSON"])
+retention = int(os.environ["RETENTION_DAYS"])
+clean_empty = bool(int(os.environ["CLEAN_EMPTY_DIRS"]))
 
-today=datetime.date.today().isoformat()
+today = datetime.date.today().isoformat()
 
 def find_root(path: str):
-    matches=[r for r in roots if path.startswith(r.rstrip('/') + '/')]
+    matches = [r for r in roots if path.startswith(r.rstrip('/') + '/')]
     if not matches:
         return None
     return sorted(matches, key=len, reverse=True)[0]
@@ -382,47 +386,49 @@ def find_root(path: str):
 def ensure_dir(p: str):
     os.makedirs(p, exist_ok=True)
 
-errors=0
-moved=0
-deleted=0
+errors = 0
+moved = 0
+deleted = 0
 
-for f in files:
-    if mode=="delete":
+for fp in files:
+    if mode == "delete":
         try:
-            os.remove(f)
+            os.remove(fp)
             deleted += 1
         except FileNotFoundError:
             pass
         except Exception as e:
             errors += 1
-            print(f"ERR delete {f}: {e}", file=sys.stderr)
+            print("ERR delete %s: %s" % (fp, e), file=sys.stderr)
 
-    elif mode=="trash":
-        root=find_root(f)
+    elif mode == "trash":
+        root = find_root(fp)
         if not root:
             errors += 1
-            print(f"ERR trash {f}: could not map to any root", file=sys.stderr)
+            print("ERR trash %s: could not map to any root" % (fp,), file=sys.stderr)
             continue
-        rel=f[len(root.rstrip('/') + '/'):]
 
-        trash_base=os.path.join(root.rstrip('/'), trash_subdir, today)
-        dest=os.path.join(trash_base, rel)
+        rel = fp[len(root.rstrip('/') + '/'):]
+
+        trash_base = os.path.join(root.rstrip('/'), trash_subdir, today)
+        dest = os.path.join(trash_base, rel)
         ensure_dir(os.path.dirname(dest))
 
         try:
-            os.rename(f, dest)  # same filesystem => fast
+            os.rename(fp, dest)  # fast if same filesystem
             moved += 1
         except OSError:
-            # fallback to mv (handles cross-device)
+            # fallback handles cross-device moves too
             try:
                 ensure_dir(os.path.dirname(dest))
-                subprocess.check_call(["mv", "--", f, dest])
+                subprocess.check_call(["mv", "--", fp, dest])
                 moved += 1
             except Exception as e:
                 errors += 1
-                print(f"ERR trash {f} -> {dest}: {e}", file=sys.stderr)
+                print("ERR trash %s -> %s: %s" % (fp, dest, e), file=sys.stderr)
+
     else:
-        raise SystemExit(f"unknown mode {mode}")
+        raise SystemExit("unknown mode %s" % (mode,))
 
 # Empty dir cleanup
 if clean_empty:
@@ -431,14 +437,14 @@ if clean_empty:
             subprocess.call(["find", r, "-type", "d", "-empty", "-delete"])
 
 # Trash retention cleanup
-if mode=="trash" and retention>0:
+if mode == "trash" and retention > 0:
     for r in roots:
-        trash_root=os.path.join(r.rstrip('/'), trash_subdir)
+        trash_root = os.path.join(r.rstrip('/'), trash_subdir)
         if os.path.isdir(trash_root):
-            subprocess.call(["find", trash_root, "-type", "f", "-mtime", f"+{retention}", "-delete"])
+            subprocess.call(["find", trash_root, "-type", "f", "-mtime", "+" + str(retention), "-delete"])
             subprocess.call(["find", trash_root, "-type", "d", "-empty", "-delete"])
 
-print(f"RESULT moved={moved} deleted={deleted} errors={errors}")
+print("RESULT moved=%d deleted=%d errors=%d" % (moved, deleted, errors))
 PY
 """
 
@@ -454,15 +460,15 @@ PY
 
     host_log.info(f"Remote action output: {out_s}")
 
-    errors = 0
+    parsed_errors = 0
     for token in out_s.split():
         if token.startswith("errors="):
             try:
-                errors = int(token.split("=", 1)[1])
+                parsed_errors = int(token.split("=", 1)[1])
             except Exception:
                 pass
 
-    return errors, len(orphan_files)
+    return parsed_errors, len(orphan_files)
 
 
 # -----------------------------
