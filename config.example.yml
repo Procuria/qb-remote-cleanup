@@ -39,7 +39,8 @@ hosts:
     # download_roots:
     #   - "/downloads"
     # auto_roots: false
-
+    # exclude_paths_containing:
+    #  - "/path/to/exclude/"
   - name: "seedhost-2"
     qb:
       url: "http://seedhost2.example.com:8080"
