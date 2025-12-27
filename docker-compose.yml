@@ -1,0 +1,24 @@
+services:
+  qb-remote-cleanup:
+    build: .
+    container_name: qb-remote-cleanup
+    environment:
+      TZ: Europe/Berlin
+      LOG_LEVEL: INFO
+    volumes:
+      # your config
+      - ./config.yml:/app/config.yml:ro
+
+      # output logs + summaries
+      - ./runs:/data/runs
+
+      # optional: mount ssh key(s) read-only
+      # (Coolify: mount secret file or bind mount)
+      - ./ssh:/ssh:ro
+
+      # optional: known_hosts (recommended if StrictHostKeyChecking=yes)
+      - ./known_hosts:/known_hosts:ro
+    command:
+      - --config
+      - /app/config.yml
+    restart: "no"

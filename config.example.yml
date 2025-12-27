@@ -1,0 +1,59 @@
+# Global defaults
+mode: dry-run               # dry-run | trash | delete
+min_age_minutes: 240        # safety: only touch files older than X minutes
+clean_empty_dirs: true
+
+trash_subdir: ".trash/qb_orphans"
+trash_retention_days: 14
+
+# Where the container writes logs/summaries (compose mounts ./runs -> /data/runs)
+out_dir: "/data/runs"
+
+# Safety: exclude typical trash paths from candidate scan
+exclude_paths_containing:
+  - "/.trash/"
+
+hosts:
+  - name: "seedhost-1"
+    qb:
+      url: "http://seedhost1.example.com:8080"
+      username: "admin"
+      password: "CHANGE_ME"
+      verify_tls: true
+      timeout_seconds: 15
+
+    ssh:
+      host: "seedhost1.example.com"
+      user: "root"
+      port: 22
+
+      # Use your own private key mounted into the container
+      # Example: ./ssh/id_ed25519 -> /ssh/id_ed25519
+      key_path: "/ssh/id_ed25519"
+
+      # accept-new is convenient; for stricter setups use "yes" + known_hosts_file
+      strict_host_key_checking: "accept-new"
+      # known_hosts_file: "/known_hosts/known_hosts"
+
+    # Optional override:
+    # download_roots:
+    #   - "/downloads"
+    # auto_roots: false
+
+  - name: "seedhost-2"
+    qb:
+      url: "http://seedhost2.example.com:8080"
+      username: "admin"
+      password: "CHANGE_ME"
+      verify_tls: true
+      timeout_seconds: 15
+
+    ssh:
+      host: "seedhost2.example.com"
+      user: "root"
+      port: 22
+      key_path: "/ssh/id_ed25519"
+      strict_host_key_checking: "accept-new"
+
+    # Use auto_roots to derive scan roots from qB "save_path"
+    auto_roots: true

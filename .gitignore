@@ -174,3 +174,7 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+runs/
+config.yml
+ssh/
+known_hosts
