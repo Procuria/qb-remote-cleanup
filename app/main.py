@@ -358,12 +358,12 @@ def remote_apply_actions(
     remote = f"""\
 set -euo pipefail
 
-MODE={shlex.quote(mode)}
-TRASH_SUBDIR={shlex.quote(trash_subdir)}
-ROOTS_JSON={shlex.quote(roots_json)}
-FILES_JSON={shlex.quote(files_json)}
-RETENTION_DAYS={int(trash_retention_days)}
-CLEAN_EMPTY_DIRS={1 if clean_empty_dirs else 0}
+export MODE={shlex.quote(mode)}
+export TRASH_SUBDIR={shlex.quote(trash_subdir)}
+export ROOTS_JSON={shlex.quote(roots_json)}
+export FILES_JSON={shlex.quote(files_json)}
+export RETENTION_DAYS={int(trash_retention_days)}
+export CLEAN_EMPTY_DIRS={1 if clean_empty_dirs else 0}
 
 python3 - <<'PY'
 import json, os, sys, subprocess, datetime
