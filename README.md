@@ -15,7 +15,7 @@ It is designed for:
 ## ✨ Key Features
 
 - Queries **qBittorrent Web API locally** (from the admin host)
-- Performs **file operations remotely via SSH** (no script installation required on seedhosts)
+- Performs **file operations remotely via SSH** (no scripts required on seedhosts)
 - Supports **multiple qBittorrent hosts**
 - **Dry-run**, **Trash**, and **Delete** modes
 - Automatically derives scan roots from qBittorrent `save_path`
@@ -26,10 +26,9 @@ It is designed for:
 - End-of-run **human-readable summary** (counts + GB)
 - JSONL machine-readable summary
 - Works locally in a Python `venv`
-- Docker / Coolify-ready by design
+- Docker / docker-compose friendly
 
 ---
-
 ## 🧠 What Is an “Orphan”?
 
 A file is considered an **orphan** if:
@@ -70,64 +69,96 @@ qb-remote-cleanup/
 
 ---
 
-## 🔧 Requirements
+## 🔧 Configuration Reference
 
-**Admin Host**
-- Python 3.9+
-- SSH client
-- Network access to qBittorrent WebUI
+### 🔑 SSH Requirements
 
-**Remote Hosts**
-- SSH access
-- bash, find, python3
+- Key-based authentication only
+- SSH user must have read/write permissions
+- No sudo required
+- SSH keys must not be committed to the repository
 
 ---
 
-## 🐍 Installation (Local / venv)
+### Global Options
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+```yaml
+mode: dry-run                # dry-run | trash | delete
+min_age_minutes: 240         # safety window before touching files
+clean_empty_dirs: true
+
+trash_subdir: ".trash/qb_orphans"
+trash_retention_days: 14
+
+out_dir: "./runs"
+
+exclude_paths_containing:
+  - "/.trash/"
+```
+
+### Per-Host Options
+
+```yaml
+hosts:
+  - name: "SeedHost Bee"
+
+    qb:
+      url: "https://seedbox.example.com/qbittorrent/"
+      username: "user"
+      password: "secret"
+      verify_tls: true
+
+    ssh:
+      host: "seedbox.example.com"
+      user: "user"
+      key_path: "./ssh/seedboxes"
+
+    auto_roots: false
+    download_roots:
+      - "/downloads"
+
+    exclude_paths_containing:
+      - "/opt/docker_volumes/"
 ```
 
 ---
 
-## ⚙️ Running
+## 🐳 Docker-Compose Example
 
-```bash
-python -m app.main --config ./config.yml --mode dry-run
+```yaml
+version: "3.9"
+services:
+  qb-remote-cleanup:
+    image: python:3.11-slim
+    volumes:
+      - ./app:/app/app
+      - ./config.yml:/app/config.yml:ro
+      - ./ssh:/app/ssh:ro
+      - ./runs:/app/runs
+    working_dir: /app
+    command: >
+      sh -c "pip install -r app/requirements.txt &&
+             python -m app.main --config /app/config.yml --mode dry-run"
 ```
 
-Modes:
-- `dry-run`
-- `trash`
-- `delete`
+---
+
+## 🛠️ Troubleshooting
+
+- **Unexpected files**: Disable `auto_roots` and pin `download_roots`
+- **Permission errors**: Verify SSH user ownership
+- **Too many `.parts` files**: Increase `min_age_minutes`
 
 ---
 
-## 📊 Summary Output
+## 🔐 Security Notes
 
-At the end of each run, the tool prints:
-- orphan count
-- orphan size in GB
-- per-host and global totals
-
-A machine-readable summary is written to `summary.jsonl`.
-
----
-
-## 🛡️ Recommended Workflow
-
-1. Dry-run
-2. Review logs
-3. Trash mode
-4. Observe
-5. Delete if desired
+- Do not commit credentials
+- Use separate configs per environment
+- Use least-privilege SSH users
 
 ---
 
 ## ⚠️ Disclaimer
 
-Use at your own risk.
 Always start with `dry-run`.
